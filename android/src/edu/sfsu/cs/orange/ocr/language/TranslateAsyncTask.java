@@ -35,7 +35,6 @@ public final class TranslateAsyncTask extends AsyncTask<String, String, Boolean>
   private CaptureActivity activity;
   private TextView textView;
   private View progressView;
-  private TextView targetLanguageTextView;
   private String sourceLanguageCode;
   private String targetLanguageCode;
   private String sourceText;
@@ -49,7 +48,6 @@ public final class TranslateAsyncTask extends AsyncTask<String, String, Boolean>
     this.sourceText = sourceText;
     textView = (TextView) activity.findViewById(R.id.translation_text_view);
     progressView = (View) activity.findViewById(R.id.indeterminate_progress_indicator_view);
-    targetLanguageTextView = (TextView) activity.findViewById(R.id.translation_language_text_view);
   }
   
   @Override
@@ -70,9 +68,6 @@ public final class TranslateAsyncTask extends AsyncTask<String, String, Boolean>
     
     if (result) {
       //Log.i(TAG, "SUCCESS");
-      if (targetLanguageTextView != null) {
-        targetLanguageTextView.setTypeface(Typeface.defaultFromStyle(Typeface.NORMAL), Typeface.NORMAL);
-      }
       textView.setText(translatedText);
       textView.setVisibility(View.VISIBLE);
       textView.setTextColor(activity.getResources().getColor(R.color.translation_text));
@@ -83,9 +78,6 @@ public final class TranslateAsyncTask extends AsyncTask<String, String, Boolean>
 
     } else {
       Log.e(TAG, "FAILURE");
-      targetLanguageTextView.setTypeface(Typeface.defaultFromStyle(Typeface.ITALIC), Typeface.ITALIC);
-      targetLanguageTextView.setText("Unavailable");
-
     }
     
     // Turn off the indeterminate progress indicator
