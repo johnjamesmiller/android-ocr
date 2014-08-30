@@ -15,6 +15,11 @@
  */
 package edu.sfsu.cs.orange.ocr;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.googlecode.leptonica.android.ReadFile;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
@@ -74,7 +79,16 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
 
     try {     
       baseApi.setImage(ReadFile.readBitmap(bitmap));
-      textResult = baseApi.getUTF8Text();
+      String rawOCRResult = baseApi.getUTF8Text(); 
+
+      //filter junk you can configure tess two to only recognize certain characters but it is very agressive and will find a lot more wrong characters
+      rawOCRResult.replaceAll("[^A-Z0-9]"," ");
+      
+      String initialResult = findIntial(rawOCRResult);
+      String numberResult = findNumber(rawOCRResult);
+      
+      textResult = numberResult + initialResult + "all found text: " + rawOCRResult;
+      
       timeRequired = System.currentTimeMillis() - start;
 
       // Check for failure to recognize text
@@ -106,6 +120,49 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
     ocrResult.setRecognitionTimeRequired(timeRequired);
     return true;
   }
+
+private String findNumber(String rawOCRResult) {
+	String numberResult = "";
+      List<String> possibleNumberMatches = new ArrayList<String>();
+      Matcher  numberMatcher = Pattern.compile("[0-9]{4,6}").matcher(rawOCRResult);
+      
+      while (numberMatcher.find()){
+    	  possibleNumberMatches.add(numberMatcher.group());
+      }
+      if( possibleNumberMatches.size() < 1){
+    	  numberResult += "No number\n";
+      }else if( possibleNumberMatches.size() == 1 ){
+    	  numberResult += possibleNumberMatches.get(0);
+      }else if( possibleNumberMatches.size() > 1 ){
+    	  numberResult += "multiple possible number matches: \n";
+    	  for (String possibleNumber : possibleNumberMatches) {
+    		  numberResult += possibleNumber + "\n";
+    	  }
+      }
+	return numberResult;
+}
+
+private String findIntial(String rawOCRResult) {
+	List<String> possibleInitialMatches = new ArrayList<String>();
+      Matcher  initialMatcher = Pattern.compile("[A-Z]{2,4}").matcher(rawOCRResult);
+
+      while (initialMatcher.find()){
+    	  possibleInitialMatches.add(initialMatcher.group());
+      }
+      String initialResult = "";
+      
+      if( possibleInitialMatches.size() < 1){
+    	  initialResult += "No Initial\n";
+      }else if( possibleInitialMatches.size() == 1 ){
+    	  initialResult += possibleInitialMatches.get(0) + " ";
+      }else if( possibleInitialMatches.size() > 1 ){
+    	  initialResult += "multiple possible initial matches: \n";
+    	  for (String possibleInitial : possibleInitialMatches) {
+    		  initialResult += possibleInitial + "\n";
+    	  }
+      }
+	return initialResult;
+}
 
   @Override
   protected void onPostExecute(Boolean result) {
