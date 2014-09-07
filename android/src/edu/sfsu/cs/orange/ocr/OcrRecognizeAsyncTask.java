@@ -15,6 +15,11 @@
  */
 package edu.sfsu.cs.orange.ocr;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -23,8 +28,10 @@ import java.util.regex.Pattern;
 import com.googlecode.leptonica.android.ReadFile;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.AsyncTask;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
@@ -39,6 +46,7 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
   //  private static final boolean PERFORM_OTSU_THRESHOLDING = false; 
   //  private static final boolean PERFORM_SOBEL_THRESHOLDING = false; 
 
+  private static final String LOG_TAG = "OcrRecognizeAsyncTask";
   private CaptureActivity activity;
   private TessBaseAPI baseApi;
   private byte[] data;
@@ -82,12 +90,27 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
       String rawOCRResult = baseApi.getUTF8Text(); 
 
       //filter junk you can configure tess two to only recognize certain characters but it is very agressive and will find a lot more wrong characters
-      rawOCRResult.replaceAll("[^A-Z0-9]"," ");
+//      rawOCRResult = rawOCRResult.replaceAll("[^A-Z0-9]"," ");
       
       String initialResult = findIntial(rawOCRResult);
       String numberResult = findNumber(rawOCRResult);
       
-      textResult = numberResult + initialResult + "all found text: " + rawOCRResult;
+      textResult = initialResult + numberResult + "\nall found text: " + rawOCRResult;
+      try {
+        File album = getAlbumStorageDir("OCRTest");
+        String fileName = start + "_textResult_"+ textResult.replaceAll("[^A-Za-z0-9]","_") + ".png";
+        
+        File fileToSave = new File(album, fileName);
+        FileOutputStream outputStream = new FileOutputStream(fileToSave);
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+        outputStream.close();
+      } catch (FileNotFoundException e) {
+        Log.e("OcrRecognizeAsyncTask", "Caught FileNotFoundException: "  + textResult );
+        e.printStackTrace();
+      } catch (IOException e) {
+        Log.e("OcrRecognizeAsyncTask", "Caught IOException: "  + textResult );
+        e.printStackTrace();
+      }
       
       timeRequired = System.currentTimeMillis() - start;
 
@@ -120,6 +143,16 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
     ocrResult.setRecognitionTimeRequired(timeRequired);
     return true;
   }
+  
+  private File getAlbumStorageDir(String albumName) {
+	    // Get the directory for the user's public pictures directory. 
+	    File file = new File(Environment.getExternalStoragePublicDirectory(
+	            Environment.DIRECTORY_PICTURES), albumName);
+	    if (!file.mkdirs()) {
+	        Log.e(LOG_TAG, "Directory not created");
+	    }
+	    return file;
+	}
 
 private String findNumber(String rawOCRResult) {
 	String numberResult = "";
