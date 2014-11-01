@@ -28,7 +28,9 @@ import java.util.regex.Pattern;
 import com.googlecode.leptonica.android.ReadFile;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.os.AsyncTask;
 import android.os.Environment;
@@ -96,22 +98,27 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
       String numberResult = findNumber(rawOCRResult);
       
       textResult = initialResult + numberResult + "\nall found text: " + rawOCRResult;
-      try {
-        File album = getAlbumStorageDir("OCRTest");
-        String fileName = start + "_textResult_"+ textResult.replaceAll("[^A-Za-z0-9]","_") + ".png";
-        
-        File fileToSave = new File(album, fileName);
-        FileOutputStream outputStream = new FileOutputStream(fileToSave);
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
-        outputStream.close();
-      } catch (FileNotFoundException e) {
-        Log.e("OcrRecognizeAsyncTask", "Caught FileNotFoundException: "  + textResult );
-        e.printStackTrace();
-      } catch (IOException e) {
-        Log.e("OcrRecognizeAsyncTask", "Caught IOException: "  + textResult );
-        e.printStackTrace();
-      }
+      String fileName = start + "_textResult_"+ textResult.replaceAll("[^A-Za-z0-9]","_") + ".png";
+      saveImage(bitmap, fileName);
       
+//      DialogInterface.OnClickListener dialogClickListener = new DialogInterface.OnClickListener() {
+//        @Override
+//        public void onClick(DialogInterface dialog, int which) {
+//          switch (which) {
+//          case DialogInterface.BUTTON_POSITIVE:
+//            // Yes button clicked
+//            break;
+//
+//          case DialogInterface.BUTTON_NEGATIVE:
+//            // No button clicked
+//            break;
+//          }
+//        }
+//      };
+//
+//      AlertDialog.Builder builder = new AlertDialog.Builder(this.activity);
+//      builder.setMessage("Is " + initialResult + " " + numberResult + " correct?").setPositiveButton("Yes", dialogClickListener).setNegativeButton("No", dialogClickListener).show();
+//      
       timeRequired = System.currentTimeMillis() - start;
 
       // Check for failure to recognize text
@@ -142,6 +149,23 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
     ocrResult.setText(textResult);
     ocrResult.setRecognitionTimeRequired(timeRequired);
     return true;
+  }
+
+  private void saveImage(Bitmap bitmap, String fileName) {
+    try {
+      File album = getAlbumStorageDir("OCRTest");
+      
+      File fileToSave = new File(album, fileName);
+      FileOutputStream outputStream = new FileOutputStream(fileToSave);
+      bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+      outputStream.close();
+    } catch (FileNotFoundException e) {
+      Log.e("OcrRecognizeAsyncTask", "Caught FileNotFoundException: "  + fileName );
+      e.printStackTrace();
+    } catch (IOException e) {
+      Log.e("OcrRecognizeAsyncTask", "Caught IOException: "  + fileName );
+      e.printStackTrace();
+    }
   }
   
   private File getAlbumStorageDir(String albumName) {
