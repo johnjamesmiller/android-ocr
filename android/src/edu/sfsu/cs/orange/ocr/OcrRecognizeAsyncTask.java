@@ -25,7 +25,12 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.googlecode.eyesfree.textdetect.Thresholder;
+import com.googlecode.leptonica.android.Pix;
 import com.googlecode.leptonica.android.ReadFile;
+import com.googlecode.leptonica.android.Scale;
+import com.googlecode.leptonica.android.Scale.ScaleType;
+import com.googlecode.leptonica.android.WriteFile;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
 import android.app.AlertDialog;
@@ -49,8 +54,10 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
   //  private static final boolean PERFORM_SOBEL_THRESHOLDING = false; 
 
   private static final String LOG_TAG = "OcrRecognizeAsyncTask";
+  private static final boolean PERFORM_FISHER_THRESHOLDING = true;
   private CaptureActivity activity;
   private TessBaseAPI baseApi;
+  private OcrEngine ocrEngine;
   private byte[] data;
   private int width;
   private int height;
@@ -63,6 +70,7 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
     this.data = data;
     this.width = width;
     this.height = height;
+    this.ocrEngine = new OcrEngine();
   }
 
   @Override
@@ -71,11 +79,16 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
     Bitmap bitmap = activity.getCameraManager().buildLuminanceSource(data, width, height).renderCroppedGreyscaleBitmap();
     String textResult;
 
-    //      if (PERFORM_FISHER_THRESHOLDING) {
-    //        Pix thresholdedImage = Thresholder.fisherAdaptiveThreshold(ReadFile.readBitmap(bitmap), 48, 48, 0.1F, 2.5F);
-    //        Log.e("OcrRecognizeAsyncTask", "thresholding completed. converting to bmp. size:" + bitmap.getWidth() + "x" + bitmap.getHeight());
-    //        bitmap = WriteFile.writeBitmap(thresholdedImage);
-    //      }
+      int desiredWidth = 300;
+      int desiredheight = 120;
+      Pix scaledImage = Scale.scaleToSize(ReadFile.readBitmap(bitmap), desiredWidth, desiredheight, ScaleType.FIT);
+      Log.e("OcrRecognizeAsyncTask", "scaling completed. converting to bmp. size:" + bitmap.getWidth() + "x" + bitmap.getHeight());
+      bitmap = WriteFile.writeBitmap(scaledImage);
+//    if (PERFORM_FISHER_THRESHOLDING) {
+//      Pix thresholdedImage = Thresholder.fisherAdaptiveThreshold(ReadFile.readBitmap(bitmap), 48, 48, 0.1F, 2.5F);
+//      Log.e("OcrRecognizeAsyncTask", "thresholding completed. converting to bmp. size:" + bitmap.getWidth() + "x" + bitmap.getHeight());
+//      bitmap = WriteFile.writeBitmap(thresholdedImage);
+//    }
     //      if (PERFORM_OTSU_THRESHOLDING) {
     //        Pix thresholdedImage = Binarize.otsuAdaptiveThreshold(ReadFile.readBitmap(bitmap), 48, 48, 9, 9, 0.1F);
     //        Log.e("OcrRecognizeAsyncTask", "thresholding completed. converting to bmp. size:" + bitmap.getWidth() + "x" + bitmap.getHeight());
@@ -91,15 +104,8 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
       baseApi.setImage(ReadFile.readBitmap(bitmap));
       String rawOCRResult = baseApi.getUTF8Text(); 
 
-      //filter junk you can configure tess two to only recognize certain characters but it is very agressive and will find a lot more wrong characters
-//      rawOCRResult = rawOCRResult.replaceAll("[^A-Z0-9]"," ");
-      
-      String initialResult = findIntial(rawOCRResult);
-      String numberResult = findNumber(rawOCRResult);
-      
-      textResult = initialResult + numberResult + "\nall found text: " + rawOCRResult;
-      String fileName = start + "_textResult_"+ textResult.replaceAll("[^A-Za-z0-9]","_") + ".png";
-      saveImage(bitmap, fileName);
+      textResult = ocrEngine.postProcessTextResult(rawOCRResult);
+      ocrEngine.saveImage(bitmap);
       
 //      DialogInterface.OnClickListener dialogClickListener = new DialogInterface.OnClickListener() {
 //        @Override
@@ -150,76 +156,6 @@ final class OcrRecognizeAsyncTask extends AsyncTask<Void, Void, Boolean> {
     ocrResult.setRecognitionTimeRequired(timeRequired);
     return true;
   }
-
-  private void saveImage(Bitmap bitmap, String fileName) {
-    try {
-      File album = getAlbumStorageDir("OCRTest");
-      
-      File fileToSave = new File(album, fileName);
-      FileOutputStream outputStream = new FileOutputStream(fileToSave);
-      bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
-      outputStream.close();
-    } catch (FileNotFoundException e) {
-      Log.e("OcrRecognizeAsyncTask", "Caught FileNotFoundException: "  + fileName );
-      e.printStackTrace();
-    } catch (IOException e) {
-      Log.e("OcrRecognizeAsyncTask", "Caught IOException: "  + fileName );
-      e.printStackTrace();
-    }
-  }
-  
-  private File getAlbumStorageDir(String albumName) {
-	    // Get the directory for the user's public pictures directory. 
-	    File file = new File(Environment.getExternalStoragePublicDirectory(
-	            Environment.DIRECTORY_PICTURES), albumName);
-	    if (!file.mkdirs()) {
-	        Log.e(LOG_TAG, "Directory not created");
-	    }
-	    return file;
-	}
-
-private String findNumber(String rawOCRResult) {
-	String numberResult = "";
-      List<String> possibleNumberMatches = new ArrayList<String>();
-      Matcher  numberMatcher = Pattern.compile("[0-9]{4,6}").matcher(rawOCRResult);
-      
-      while (numberMatcher.find()){
-    	  possibleNumberMatches.add(numberMatcher.group());
-      }
-      if( possibleNumberMatches.size() < 1){
-    	  numberResult += "No number\n";
-      }else if( possibleNumberMatches.size() == 1 ){
-    	  numberResult += possibleNumberMatches.get(0);
-      }else if( possibleNumberMatches.size() > 1 ){
-    	  numberResult += "multiple possible number matches: \n";
-    	  for (String possibleNumber : possibleNumberMatches) {
-    		  numberResult += possibleNumber + "\n";
-    	  }
-      }
-	return numberResult;
-}
-
-private String findIntial(String rawOCRResult) {
-	List<String> possibleInitialMatches = new ArrayList<String>();
-      Matcher  initialMatcher = Pattern.compile("[A-Z]{2,4}").matcher(rawOCRResult);
-
-      while (initialMatcher.find()){
-    	  possibleInitialMatches.add(initialMatcher.group());
-      }
-      String initialResult = "";
-      
-      if( possibleInitialMatches.size() < 1){
-    	  initialResult += "No Initial\n";
-      }else if( possibleInitialMatches.size() == 1 ){
-    	  initialResult += possibleInitialMatches.get(0) + " ";
-      }else if( possibleInitialMatches.size() > 1 ){
-    	  initialResult += "multiple possible initial matches: \n";
-    	  for (String possibleInitial : possibleInitialMatches) {
-    		  initialResult += possibleInitial + "\n";
-    	  }
-      }
-	return initialResult;
-}
 
   @Override
   protected void onPostExecute(Boolean result) {
